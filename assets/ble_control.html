@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Smart Farm Dashboard</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 10px;
+            background-color: #1a1a1a;
+            color: #ffffff;
+            text-align: center;
+        }
+        .header {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 20px;
+            color: #4CAF50;
+        }
+        .data-container {
+            display: flex;
+            justify-content: space-around;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+        .data-box {
+            background-color: #333333;
+            border-radius: 10px;
+            padding: 15px;
+            width: 40%;
+            box-shadow: 0 4px 8px rgba(0, 0.2, 0, 0.2);
+            margin-bottom: 10px;
+        }
+        .data-label {
+            font-size: 14px;
+            color: #cccccc;
+            margin-bottom: 5px;
+        }
+        .data-value {
+            font-size: 36px;
+            font-weight: bold;
+            color: #66ccff;
+        }
+        .threshold-value {
+            color: #ff9933;
+            font-size: 30px;
+        }
+        .control-section {
+            background-color: #2a2a2a;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 20px;
+            text-align: left;
+        }
+        .control-header {
+            font-size: 18px;
+            font-weight: bold;
+            color: #FFD700;
+            margin-bottom: 10px;
+        }
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        .control-button {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            flex-grow: 1;
+            transition: background-color 0.3s;
+        }
+        .system-manual-btn {
+            background-color: #5cb85c;
+            color: white;
+        }
+        .system-manual-btn.active {
+            background-color: #d9534f;
+        }
+        .pump-control-btn {
+            background-color: #5bc0de;
+            color: white;
+        }
+        .led-control-btn {
+            background-color: #f0ad4e;
+            color: white;
+        }
+        .threshold-set-btn {
+            background-color: #ff9933;
+            color: white;
+        }
+        .ble-connect-btn {
+            background-color: #00e676;
+            color: #1a1a1a;
+        }
+        .ble-disconnect-btn {
+            background-color: #ff5252;
+            color: white;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 5px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+        .status-auto { background-color: #5cb85c; color: white; }
+        .status-manual { background-color: #d9534f; color: white; }
+        .status-on { background-color: #007bff; color: white; }
+        .status-off { background-color: #6c757d; color: white; }
+
+        .status-ble-connecting { background-color: #007bff; color: white; }
+        .status-ble-connected { background-color: #00e676; color: #1a1a1a; }
+        .status-ble-disconnected { background-color: #ff5252; color: white; }
+
+        #bleDeviceList {
+            background-color: #1c1c1c;
+            border: 1px solid #424242;
+            border-radius: 4px;
+            margin-top: 10px;
+            padding: 5px;
+            max-height: 200px;
+            overflow-y: auto;
+            text-align: left;
+            font-size: 14px;
+            color: #9e9e9e;
+        }
+        #bleDeviceList div {
+            padding: 8px 5px;
+            border-bottom: 1px dashed #2a2a2a;
+            cursor: pointer;
+        }
+        #bleDeviceList div:hover {
+            background-color: #3a3a3a;
+        }
+        .threshold-input {
+            width: 80px;
+            padding: 8px;
+            border-radius: 5px;
+            border: 1px solid #555;
+            background-color: #333;
+            color: #fff;
+            font-size: 16px;
+            text-align: center;
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="header">Smart Farm 실시간 대시보드</div>
+
+<div class="data-container">
+    <div class="data-box">
+        <div class="data-label">토양 습도 (H)</div>
+        <div id="soilMoistureValue" class="data-value">-- %</div>
+    </div>
+    <div class="data-box">
+        <div class="data-label">조도 (L)</div>
+        <div id="lightValue" class="data-value">-- LUX</div>
+    </div>
+    <div class="data-box">
+        <div class="data-label">습도 임계값 (HT)</div>
+        <div id="humidityThresholdValue" class="data-value threshold-value">-- %</div>
+    </div>
+    <div class="data-box">
+        <div class="data-label">조도 임계값 (LT)</div>
+        <div id="lightThresholdValue" class="data-value threshold-value">--</div>
+    </div>
+</div>
+
+<div class="control-section">
+    <div class="control-header">
+        시스템 제어
+        <span id="systemStatusBadge" class="status-badge status-auto">자동</span>
+    </div>
+    <div class="button-group">
+        <button id="systemManualToggle" class="control-button system-manual-btn" onclick="toggleSystemManualMode()">
+            수동 모드 전환
+        </button>
+    </div>
+
+    <div class="control-header" style="margin-top: 20px;">
+        펌프 제어
+        <span id="pumpStatusBadge" class="status-badge status-off">OFF</span>
+    </div>
+    <div class="button-group">
+        <button class="control-button pump-control-btn" onclick="sendCommand('pump', 'on')">펌프 ON</button>
+        <button class="control-button pump-control-btn" onclick="sendCommand('pump', 'off')">펌프 OFF</button>
+    </div>
+
+    <div class="control-header" style="margin-top: 20px;">
+        LED 제어
+        <span id="ledStatusBadge" class="status-badge status-off">OFF</span>
+    </div>
+    <div class="button-group">
+        <button class="control-button led-control-btn" onclick="sendCommand('led', 'on')">LED ON</button>
+        <button class="control-button led-control-btn" onclick="sendCommand('led', 'off')">LED OFF</button>
+    </div>
+
+    <div class="control-header" style="margin-top: 20px;">
+        습도 임계값 설정 (0 ~ 90%)
+    </div>
+    <div class="button-group">
+        <input type="number" id="inputHumidityThreshold" class="threshold-input" min="0" max="90" value="30" placeholder="0~90">
+        <button class="control-button threshold-set-btn" onclick="setThreshold('H')">습도 임계값 설정</button>
+    </div>
+
+    <div class="control-header" style="margin-top: 20px;">
+        조도 임계값 설정 (0 ~ 1023)
+    </div>
+    <div class="button-group">
+        <input type="number" id="inputLightThreshold" class="threshold-input" min="0" max="1023" value="100" placeholder="0~1023">
+        <button class="control-button threshold-set-btn" onclick="setThreshold('L')">조도 임계값 설정</button>
+    </div>
+
+</div>
+
+<div class="control-section" style="background-color: #1c1c1c; border: 1px solid #424242;">
+    <div class="control-header" style="color: #66ccff; margin-bottom: 15px;">
+        BLE 통신 제어
+        <span id="bleConnectionStatus" class="status-badge status-ble-disconnected">연결 끊김</span>
+    </div>
+    <div class="button-group">
+        <button id="btnBleConnect" class="control-button ble-connect-btn" onclick="startScan(true)">
+            스캔 및 연결 시도
+        </button>
+        <button id="btnBleDisconnect" class="control-button ble-disconnect-btn" onclick="disconnect()">
+            연결 해제
+        </button>
+    </div>
+    <p id="tvBleInfo" style="font-size: 14px; color: #bdbdbd; margin-top: 5px;">BLE 상태: 연결 기록 없음</p>
+
+    <div id="bleDeviceList">
+        <div>BLE 통신을 시작하려면 '스캔 및 연결 시도'를 누르세요.</div>
+    </div>
+</div>
+
+<script>
+    const BLE_LIST_ID = 'bleDeviceList';
+
+    function updateDashboardData(rawData) {
+        const dataMap = {};
+        try {
+            const cleanData = rawData.replace(/%/g, '').trim();
+            const parts = cleanData.split(',');
+            for (let i = 0; i < parts.length; i += 2) {
+                if (i + 1 < parts.length) {
+                    dataMap[parts[i].trim()] = parts[i+1].trim();
+                }
+            }
+        } catch (e) {
+            console.error("Data parsing error:", e);
+            return;
+        }
+
+        if (dataMap.H !== undefined) {
+            document.getElementById('soilMoistureValue').innerText = dataMap.H + " %";
+        }
+        if (dataMap.L !== undefined) {
+            document.getElementById('lightValue').innerText = dataMap.L + " LUX";
+        }
+        if (dataMap.HT !== undefined) {
+            document.getElementById('humidityThresholdValue').innerText = dataMap.HT + " %";
+        }
+        if (dataMap.LT !== undefined) {
+            document.getElementById('lightThresholdValue').innerText = dataMap.LT;
+        }
+
+        const systemModeValue = dataMap.SM;
+        const systemMode = systemModeValue === '1' ? '수동' : '자동';
+        const isManual = systemModeValue === '1';
+
+        const systemBadge = document.getElementById('systemStatusBadge');
+        const systemButton = document.getElementById('systemManualToggle');
+
+        systemBadge.innerText = systemMode;
+        systemBadge.className = isManual ? 'status-badge status-manual' : 'status-badge status-auto';
+
+        systemButton.innerText = isManual ? '자동 모드 전환' : '수동 모드 전환';
+        systemButton.classList.toggle('active', isManual);
+
+        const pumpRunningValue = dataMap.RP;
+        const isPumpRunning = pumpRunningValue === '1';
+        const pumpStatusBadge = document.getElementById('pumpStatusBadge');
+
+        pumpStatusBadge.innerText = isPumpRunning ? 'ON' : 'OFF';
+        pumpStatusBadge.classList.toggle('status-on', isPumpRunning);
+        pumpStatusBadge.classList.toggle('status-off', !isPumpRunning);
+
+        const ledRunningValue = dataMap.RL;
+        let isLedRunning;
+
+        if (isManual) {
+            isLedRunning = ledRunningValue === '1';
+        } else {
+            isLedRunning = ledRunningValue === '0';
+        }
+
+        const ledStatusBadge = document.getElementById('ledStatusBadge');
+
+        ledStatusBadge.innerText = isLedRunning ? 'ON' : 'OFF';
+        ledStatusBadge.classList.toggle('status-on', isLedRunning);
+        ledStatusBadge.classList.toggle('status-off', !isLedRunning);
+    }
+
+    function updateBleStatusBadge(statusText, badgeClass) {
+        const badge = document.getElementById('bleConnectionStatus');
+        badge.innerText = statusText;
+        badge.className = 'status-badge ' + badgeClass;
+        document.getElementById('tvBleInfo').innerText = "BLE 상태: " + statusText;
+
+        document.getElementById('btnBleConnect').disabled = statusText === '연결됨';
+        document.getElementById('btnBleDisconnect').disabled = statusText === '연결 끊김';
+    }
+
+    function updateStatus(status) {
+        if (status.includes('활성화됨') || status.includes('연결 기록 없음')) {
+            updateBleStatusBadge('준비 완료', 'status-ble-disconnected');
+            document.getElementById('tvBleInfo').innerText = "BLE 상태: " + status;
+        } else if (status.includes('스캔 중')) {
+            updateBleStatusBadge('스캔 중', 'status-ble-connecting');
+            document.getElementById('bleDeviceList').innerHTML = '<div>장치를 찾고 있습니다...</div>';
+        } else if (status.includes('연결 시도 중') || status.includes('자동 재연결 시도 중') || status.includes('MTU 요청 중')) {
+            updateBleStatusBadge('연결 중', 'status-ble-connecting');
+            document.getElementById('bleDeviceList').innerHTML = '<div>' + status + '</div>';
+        } else if (status.includes('연결됨') || status.includes('통신 준비 완료')) {
+            updateBleStatusBadge('연결됨', 'status-ble-connected');
+            document.getElementById(BLE_LIST_ID).innerHTML = '<div>BLE 통신 준비 완료. 데이터 수신 중.</div>';
+        } else if (status.includes('연결 안됨') || status.includes('연결 해제됨')) {
+            updateBleStatusBadge('연결 끊김', 'status-ble-disconnected');
+            document.getElementById(BLE_LIST_ID).innerHTML = '<div>연결이 해제되었습니다. 다시 시도하세요.</div>';
+        }
+    }
+
+    function updateDeviceList(devicesJson) {
+        const list = document.getElementById(BLE_LIST_ID);
+        list.innerHTML = '';
+        let devices = [];
+        try {
+            devices = JSON.parse(devicesJson);
+        } catch(e) {
+            console.error("Failed to parse device list JSON:", e);
+        }
+
+        if (devices.length === 0) {
+            list.innerHTML = '<div>장치를 찾을 수 없습니다. 스캔을 다시 시작하세요.</div>';
+            updateBleStatusBadge('스캔 완료', 'status-ble-disconnected');
+            return;
+        }
+
+        devices.forEach(device => {
+            const item = document.createElement('div');
+            item.innerText = `${device.name} (${device.address})`;
+            item.onclick = () => {
+                connectToDevice(device.address);
+                updateBleStatusBadge('연결 중', 'status-ble-connecting');
+                list.innerHTML = `<div>연결 시도 중: ${device.name}</div>`;
+            };
+            list.appendChild(item);
+        });
+
+        if (devices.length > 0) {
+            document.getElementById('tvBleInfo').innerText = "장치 발견! 목록에서 선택하세요.";
+        }
+    }
+
+    function updateReceivedData(rawData) {
+        updateDashboardData(rawData);
+        if (!document.getElementById('bleConnectionStatus').innerText.includes('연결됨')) {
+            updateBleStatusBadge('연결됨', 'status-ble-connected');
+        }
+    }
+
+    function sendCommand(target, action) {
+        const command = `${target.toUpperCase()}_${action.toUpperCase()}`;
+        sendTextCommand(command);
+    }
+
+    function toggleSystemManualMode() {
+        const systemBadge = document.getElementById('systemStatusBadge');
+        const currentModeText = systemBadge.innerText.trim();
+        const newCommand = currentModeText === '자동' ? 'MANUAL_ON' : 'MANUAL_OFF';
+
+        sendTextCommand(newCommand);
+
+        const newModeText = currentModeText === '자동' ? '수동' : '자동';
+        const isManual = newModeText === '수동';
+        const systemButton = document.getElementById('systemManualToggle');
+
+        systemBadge.innerText = newModeText;
+        systemBadge.className = isManual ? 'status-badge status-manual' : 'status-badge status-auto';
+
+        systemButton.innerText = isManual ? '자동 모드 전환' : '수동 모드 전환';
+        systemButton.classList.toggle('active', isManual);
+    }
+
+    function setThreshold(target) {
+        let value, command;
+        let min, max;
+
+        if (target === 'H') {
+            const input = document.getElementById('inputHumidityThreshold');
+            value = parseInt(input.value);
+            min = parseInt(input.min);
+            max = parseInt(input.max);
+
+            if (isNaN(value) || value < min || value > max) {
+                alert(`습도 임계값은 ${min}%에서 ${max}% 사이로 입력해주세요.`);
+                return;
+            }
+            command = `SET_H_${value}`;
+        } else if (target === 'L') {
+            const input = document.getElementById('inputLightThreshold');
+            value = parseInt(input.value);
+            min = parseInt(input.min);
+            max = parseInt(input.max);
+
+            if (isNaN(value) || value < min || value > max) {
+                alert(`조도 임계값은 ${min}에서 ${max} 사이로 입력해주세요.`);
+                return;
+            }
+            command = `SET_L_${value}`;
+        }
+
+        if (command) {
+            sendTextCommand(command);
+            alert(`[${target} 임계값] ${value}로 설정 명령 전송! (앱 UI는 다음 수신 데이터로 갱신됩니다.)`);
+        }
+    }
+
+    function startScan(isManualCall) {
+        if (window.AndroidBridge) {
+            document.getElementById('bleDeviceList').innerHTML = '<div>권한 및 블루투스 상태 확인 중...</div>';
+            window.AndroidBridge.startBleScan(isManualCall);
+        } else {
+            console.error("AndroidBridge not found.");
+            updateBleStatusBadge("오류", "status-manual");
+            document.getElementById('tvBleInfo').innerText = "Android Bridge 오류: 앱 환경을 확인하세요.";
+        }
+    }
+
+    function disconnect() {
+        if (window.AndroidBridge) {
+            window.AndroidBridge.disconnectGatt();
+        }
+    }
+
+    function connectToDevice(address) {
+        if (window.AndroidBridge) {
+            window.AndroidBridge.connectToDevice(address);
+        }
+    }
+
+    function sendTextCommand(message) {
+        if (window.AndroidBridge) {
+            window.AndroidBridge.sendTextCommand(message);
+        } else {
+            alert("연결 상태를 확인하세요. 명령 전송 실패.");
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        startScan(false);
+    });
+</script>
+
+</body>
+</html>
